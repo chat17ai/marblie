@@ -1,14 +1,14 @@
 // src/marble/tracks/StarterTrack.tsx
 import React, { useRef, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { RigidBody, TrimeshCollider, type RigidBodyApi } from '@react-three/rapier';
+import { RigidBody, TrimeshCollider, type RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { trackMaterials, getModelPath } from '../trackData'; // Adjust path
 
 interface StarterTrackProps {
-  id: string;
+  id: string | number;
   position: [number, number, number];
-  rotation: [number, number, number];
+  rotation?: [number, number, number];
 }
 
 // Define the spawn offset relative to the track's origin
@@ -21,12 +21,12 @@ export const StarterTrack: React.FC<StarterTrackProps> = ({ id, position, rotati
     return null;
   }
   const { scene } = useGLTF(modelPath);
-  const rigidBodyRef = useRef<RigidBodyApi>(null);
+  const rigidBodyRef = useRef<RapierRigidBody>(null);
 
   // Memoize processed scene to avoid re-creating meshes and colliders on every render
   const processedScene = useMemo(() => {
-    const meshes: JSX.Element[] = [];
-    const colliders: JSX.Element[] = [];
+    const meshes: React.ReactElement[] = [];
+    const colliders: React.ReactElement[] = [];
     let meshIndex = 0;
 
     scene.traverse((child) => {

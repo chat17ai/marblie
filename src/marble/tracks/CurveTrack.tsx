@@ -16,7 +16,7 @@ interface CurveTrackProps {
   id: string;
   position: [number, number, number];
   rotation: [number, number, number];
-  curvePoints?: CurvePoint[]; // Default to defaults.curvePoints
+  curvePoints?: THREE.Vector3[] | CurvePoint[]; // 修改类型以匹配默认值
   // Potentially add other shape parameters as props later
 }
 
@@ -34,7 +34,12 @@ export const CurveTrack: React.FC<CurveTrackProps> = ({
 
   const { mainGeometry, capGeometry } = useMemo(() => {
     const shape = trackShape({ width, height, depth: height, trackWidth, trackDepth });
-    const points = curvePoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+    
+    // 确保 curvePoints 是 THREE.Vector3 类型
+    const points = Array.isArray(curvePoints) 
+      ? curvePoints.map(p => p instanceof THREE.Vector3 ? p : new THREE.Vector3(p.x, p.y, p.z))
+      : defaults.curvePoints;
+    
     const curve = new THREE.QuadraticBezierCurve3(points[0], points[1], points[2]);
     
     const mainGeom = curveTrackGeometry(shape, curve);
@@ -47,7 +52,11 @@ export const CurveTrack: React.FC<CurveTrackProps> = ({
   }, [curvePoints, width, height, trackWidth, trackDepth, sections]);
   
   const { cap1Transform, cap2Transform } = useMemo(() => {
-    const points = curvePoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+    // 确保 curvePoints 是 THREE.Vector3 类型
+    const points = Array.isArray(curvePoints) 
+      ? curvePoints.map(p => p instanceof THREE.Vector3 ? p : new THREE.Vector3(p.x, p.y, p.z))
+      : defaults.curvePoints;
+      
     const curve = new THREE.QuadraticBezierCurve3(points[0], points[1], points[2]);
     const startPos = curve.getPointAt(0);
     const endPos = curve.getPointAt(1);
@@ -72,7 +81,8 @@ export const CurveTrack: React.FC<CurveTrackProps> = ({
   }, [curvePoints]);
 
 
-  if (!mainGeometry.attributes.position || !mainGeometry.index) {
+  // 添加安全检查，确保几何体有效
+  if (!mainGeometry || !mainGeometry.attributes || !mainGeometry.attributes.position || !mainGeometry.index) {
       console.error("CurveTrack: Main geometry missing position or index");
       return null;
   }

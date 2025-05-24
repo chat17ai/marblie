@@ -2,11 +2,12 @@ import * as THREE from "three";
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import * as TRACK from "./marble/Track";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { Marble } from "./marble/Marble";
+import { Marble } from "./marble/Marble.ts";
 import { TrackTransformControls } from "./marble/TrackTransformControls";
 import GUI from "lil-gui";
 import gsap from "gsap";
 import { isMouseInTrackButton } from "./marble/utils";
+import { defaults } from "./marble/config";
 
 import {
   DepthOfFieldEffect,
@@ -182,7 +183,27 @@ await TRACK.preloadTracks();
 const tracks = await loadTracks(scene, world);
 
 const starterTrack = tracks.find((track) => track.type === "StarterTrack");
-starterTrack?.placeMarble(marbles, getAvailableMarbleLight());
+if (starterTrack) {
+  const light = getAvailableMarbleLight();
+  if (light) {
+    new Marble(
+      scene,
+      world,
+      defaults.marbleRadius,
+      light,
+      marbles
+    ).setTranslation(0.9, starterTrack.group.position.y + 2.5, starterTrack.group.position.z);
+  } else {
+    // 如果没有可用的灯光，则不使用灯光创建弹珠
+    new Marble(
+      scene,
+      world,
+      defaults.marbleRadius,
+      undefined as any, // 传递undefined作为light参数
+      marbles
+    ).setTranslation(0.9, starterTrack.group.position.y + 2.5, starterTrack.group.position.z);
+  }
+}
 
 const trackTransformControls = new TrackTransformControls(camera, scene, tracks);
 
@@ -232,7 +253,27 @@ function autoPlaceMarble() {
   if (elapsedTime - lastTriggerTime >= 3) {
     lastTriggerTime = elapsedTime;
 
-    starterTrack.placeMarble(marbles, getAvailableMarbleLight());
+    if (starterTrack) {
+      const light = getAvailableMarbleLight();
+      if (light) {
+        new Marble(
+          scene,
+          world,
+          defaults.marbleRadius,
+          light,
+          marbles
+        ).setTranslation(0.9, starterTrack.group.position.y + 2.5, starterTrack.group.position.z);
+      } else {
+        // 如果没有可用的灯光，则不使用灯光创建弹珠
+        new Marble(
+          scene,
+          world,
+          defaults.marbleRadius,
+          undefined as any, // 传递undefined作为light参数
+          marbles
+        ).setTranslation(0.9, starterTrack.group.position.y + 2.5, starterTrack.group.position.z);
+      }
+    }
   }
 }
 
@@ -479,7 +520,27 @@ const addRandomTrack = () => {
 };
 
 const placeMarble = () => {
-  starterTrack.placeMarble(marbles, getAvailableMarbleLight());
+  if (starterTrack) {
+    const light = getAvailableMarbleLight();
+    if (light) {
+      new Marble(
+        scene,
+        world,
+        defaults.marbleRadius,
+        light,
+        marbles
+      ).setTranslation(0.9, starterTrack.group.position.y + 2.5, starterTrack.group.position.z);
+    } else {
+      // 如果没有可用的灯光，则不使用灯光创建弹珠
+      new Marble(
+        scene,
+        world,
+        defaults.marbleRadius,
+        undefined as any, // 传递undefined作为light参数
+        marbles
+      ).setTranslation(0.9, starterTrack.group.position.y + 2.5, starterTrack.group.position.z);
+    }
+  }
   gsap.to(".marbleButton", {
     keyframes: [
       { scale: 1.2, duration: 0.05, ease: "power1.out" },
@@ -626,7 +687,7 @@ window.addEventListener("keydown", (event) => {
       overlay?.classList.toggle("hide");
       break;
     case "KeyM":
-      starterTrack.placeMarble(marbles, getAvailableMarbleLight());
+      placeMarble();
       break;
   }
 });

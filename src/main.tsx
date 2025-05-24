@@ -5,7 +5,7 @@ import { OrbitControls, useGLTF } from '@react-three/drei';
 import { Physics, RigidBody } from '@react-three/rapier';
 import { EffectComposer, SMAA, DepthOfField } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { Marble } from './marble/Marble'; // Adjust path if needed
+import { Marble } from './marble/Marble.tsx'; // 明确指定从.tsx文件导入
 import { modelDatas } from './marble/trackData'; // Adjust path if needed
 import { StarterTrack, STARTER_TRACK_SPAWN_OFFSET } from './marble/tracks/StarterTrack'; // Adjust path
 import { StraightTrack } from './marble/tracks/StraightTrack'; // Adjust path

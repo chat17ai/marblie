@@ -2,7 +2,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, BallCollider } from '@react-three/rapier';
-import type { RigidBodyApi } from '@react-three/rapier';
+import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { randFloat } from 'three/src/math/MathUtils.js';
 import { defaults } from './config';
@@ -29,7 +29,7 @@ const lightAttachedMaterial = new THREE.MeshStandardMaterial({
 });
 
 export const Marble: React.FC<MarbleProps> = ({ id, position, hasLight, onDispose }) => {
-  const rigidBodyRef = useRef<RigidBodyApi>(null);
+  const rigidBodyRef = useRef<RapierRigidBody>(null);
 
   const material = useMemo(() => {
     return hasLight ? lightAttachedMaterial : createStandardMaterial();
