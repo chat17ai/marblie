@@ -1,7 +1,7 @@
 // src/marble/tracks/StraightTrack.tsx
 import React, { useMemo } from 'react';
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
-import * as THREE from 'three';
+// import * as THREE from 'three'; // TS6133: 'THREE' is declared but its value is never read.
 import { trackMaterials } from '../trackData'; // Adjust path
 import { defaults } from '../config'; // Adjust path, for default dimensions
 

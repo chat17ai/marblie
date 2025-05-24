@@ -19,13 +19,13 @@ const trackNames = ['RingTrack', 'RingLongTrack', 'ConeTrack', 'TubeTrack'];
 
 
 export const RandomTrack: React.FC<RandomTrackProps> = (props) => {
-  const { id, position, rotation } = props;
+  const { id } = props; // position and rotation removed (TS6133) - they are in props and spread to ChosenTrack
 
   // Determine which track to render randomly, once per instance
-  const [ChosenTrack, chosenTrackName] = useMemo(() => {
+  const [ChosenTrack] = useMemo(() => { // chosenTrackName removed (TS6133)
     const randomIndex = randInt(0, trackChoices.length - 1);
     console.log(`RandomTrack ${id} chose: ${trackNames[randomIndex]}`);
-    return [trackChoices[randomIndex], trackNames[randomIndex]];
+    return [trackChoices[randomIndex], trackNames[randomIndex]]; // chosenTrackName was here
   }, [id]); // Re-choose if ID changes, effectively making it instance-specific
 
   // Pass down all props. If chosen tracks have different required props,

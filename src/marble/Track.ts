@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { curveTrackGeometry, straightTrackGeometry, trackShape } from "./geometries.js";
 import * as THREE from "three";
 import * as RAPIER from "@dimforge/rapier3d-compat";
@@ -27,7 +25,7 @@ const modelDatas = [
   { name: "LightCubeBase", url: "./models/light-cube-base.glb", geometries: [] },
 ];
 
-const baseColors = {
+const baseColors: { [key: string]: string } = {
   c1: "#2a5e92",
   c2: "#ffeead",
   c3: "#ff9943",
@@ -106,21 +104,24 @@ export async function preloadTracks() {
     const glb = await loader.loadAsync(url);
 
     for (const child of glb.scene.children) {
-      modelData.geometries.push(child.geometry);
+      if (child instanceof THREE.Mesh && child.geometry) {
+        // Ensure child is a Mesh and has geometry
+        (modelData.geometries as THREE.BufferGeometry[]).push(child.geometry);
+      }
     }
   }
 }
 
-function getGeometries(name: string) {
+function getGeometries(name: string): THREE.BufferGeometry[] | undefined {
   const data = modelDatas.find((data) => data.name === name);
-  return data?.geometries;
+  return data?.geometries as THREE.BufferGeometry[] | undefined;
 }
 
 function buildTrack(
   name: string,
   group: THREE.Group,
-  material: THREE.Material,
-  scene: THREE.Scene,
+  material: THREE.Material, // Changed back to THREE.Material
+  _scene: THREE.Scene, // Marked as unused
   body: RAPIER.RigidBody,
   world: RAPIER.World,
   isTrimesh = true
@@ -129,8 +130,10 @@ function buildTrack(
   if (!geometries) return;
 
   for (const geometry of geometries) {
+    if (!geometry) continue; // Skip if geometry is undefined
     geometry.computeVertexNormals();
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial(material));
+    // material is now a THREE.Material instance
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
@@ -138,21 +141,52 @@ function buildTrack(
 
     const newGeometry = BufferGeometryUtils.mergeVertices(geometry);
 
+    const positionAttribute = newGeometry.getAttribute("position");
+    if (!positionAttribute || !positionAttribute.array) {
+      console.warn(`Skipping collider creation for geometry in model ${name} as it is missing position data.`);
+      continue;
+    }
+
+    if (!newGeometry.index || !newGeometry.index.array) {
+      console.warn(`Skipping collider creation for geometry in model ${name} as it is missing index data.`);
+      continue;
+    }
+
     const collider = isTrimesh
       ? RAPIER.ColliderDesc.trimesh(
-          newGeometry.getAttribute("position").array,
-          newGeometry.index.array
+          positionAttribute.array as Float32Array,
+          newGeometry.index.array as Uint32Array
         )
       : RAPIER.ColliderDesc.convexHull(
-          newGeometry.getAttribute("position").array,
-          newGeometry.index.array
+          positionAttribute.array as Float32Array
+          // newGeometry.index.array should not be passed to convexHull (TS2554 fix from documentation)
         );
-    world.createCollider(collider, body);
+    if (collider) { // Check if collider is not null
+      world.createCollider(collider, body);
+    }
   }
 }
 
+interface StraightTrackOptions {
+  width?: number;
+  height?: number;
+  depth?: number;
+  trackWidth?: number;
+  trackDepth?: number;
+}
+
 export class Straight extends PhysicsObject {
-  constructor(scene, world, options = {}) {
+  dimensions: StraightTrackOptions;
+  originalDimensions: StraightTrackOptions;
+  colliders: RAPIER.Collider[] = [];
+  // world is inherited from PhysicsObject
+  // type is inherited from PhysicsObject
+  // scene is inherited from PhysicsObject
+  // group is inherited from PhysicsObject
+  // body is inherited from PhysicsObject
+  // timeline is inherited from PhysicsObject
+
+  constructor(scene: THREE.Scene, world: RAPIER.World, options: StraightTrackOptions = {}) {
     const {
       width = defaults.width,
       height = defaults.height,
@@ -169,7 +203,7 @@ export class Straight extends PhysicsObject {
       trackDepth,
     });
 
-    const material = setMaterials.straight();
+    const material = setMaterials.straight(); // No longer cast to MaterialParameters
     const mesh = new THREE.Mesh(geometry, material);
 
     const group = new THREE.Group();
@@ -182,15 +216,15 @@ export class Straight extends PhysicsObject {
 
     this.dimensions = { ...defaults, ...options };
     this.originalDimensions = { ...defaults, ...options };
-    this.colliders = [];
-    this.world = world;
+    // this.colliders is initialized above
+    this.world = world; // world is already on PhysicsObject but often re-assigned in subclasses
 
     this.type = "StraightTrack";
 
     this.generateColliders();
   }
 
-  scale(x, y, z) {
+  scale(x: number, y: number, z: number) { // Add types
     this.timeline.to(this.group.scale, {
       x: x,
       y: y,
@@ -199,14 +233,16 @@ export class Straight extends PhysicsObject {
       ease: "back.out(1.7)",
     });
 
-    this.dimensions.depth = this.originalDimensions.depth * z;
+    if (this.dimensions.depth !== undefined && this.originalDimensions.depth !== undefined) {
+      this.dimensions.depth = this.originalDimensions.depth * z;
+    }
     this.removeColliders();
     this.generateColliders();
     return this;
   }
 
   generateColliders() {
-    const { width, height, depth, trackWidth, trackDepth } = this.dimensions;
+    const { width, height, depth, trackWidth, trackDepth } = this.dimensions as Required<StraightTrackOptions>; // Cast to Required as they should be set by now
     const wallWidth = (width - trackWidth) / 2;
 
     const colliderDescs = [
@@ -232,19 +268,39 @@ export class Straight extends PhysicsObject {
     for (const desc of colliderDescs) {
       desc.setFriction(defaults.trackFriction);
       const collider = this.world.createCollider(desc, this.body);
-      this.colliders.push(collider);
+      if (collider) this.colliders.push(collider); // Check collider
     }
   }
 
   removeColliders() {
     for (const c of this.colliders) {
-      this.world.removeCollider(c, true);
+      this.world.removeCollider(c, true); // Assumed true for wakeUp, adjust if necessary
     }
   }
 }
 
+interface CurveTrackOptions {
+  width?: number;
+  height?: number;
+  depth?: number;
+  trackWidth?: number;
+  trackDepth?: number;
+  sections?: number;
+  curvePoints?: { x: number; y: number; z: number }[];
+}
+
 export class Curve extends PhysicsObject {
-  constructor(scene, world, options = {}) {
+  shape: THREE.Shape;
+  mesh: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
+  cap1: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshStandardMaterial>;
+  cap2: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshStandardMaterial>;
+  curvePoints: THREE.Vector3[];
+  curve: THREE.QuadraticBezierCurve3;
+  geometry: THREE.ExtrudeGeometry;
+  sections: number;
+  collider: RAPIER.Collider | null = null; // Initialize collider
+
+  constructor(scene: THREE.Scene, world: RAPIER.World, options: CurveTrackOptions = {}) {
     const {
       width = defaults.width,
       height = defaults.height,
@@ -268,9 +324,9 @@ export class Curve extends PhysicsObject {
 
     const shape = trackShape({ width, height, depth, trackWidth, trackDepth });
     const geometry = curveTrackGeometry(shape, curve);
-    const material = setMaterials.curve();
+    const material = setMaterials.curve(); // No longer cast
 
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material); // mesh uses the direct material instance
     mesh.castShadow = true;
 
     const group = new THREE.Group();
@@ -281,6 +337,7 @@ export class Curve extends PhysicsObject {
     super(scene, group, world, trackBody);
 
     const capGeometry = new THREE.ShapeGeometry(shape);
+    // Caps should also use the same material instance if that's the intent
     const capMesh1 = new THREE.Mesh(capGeometry, material);
     const capMesh2 = new THREE.Mesh(capGeometry, material);
 
@@ -317,16 +374,25 @@ export class Curve extends PhysicsObject {
   }
 
   removeCollider() {
-    this.world.removeCollider(this.collider);
+    if (this.collider) { // Check if collider exists
+      this.world.removeCollider(this.collider, true); // Add wakeUp parameter
+    }
   }
 
   generateCollider() {
-    let newGeometry = BufferGeometryUtils.mergeVertices(this.mesh.geometry);
-    const trackCollider = RAPIER.ColliderDesc.trimesh(
-      newGeometry.getAttribute("position").array,
-      newGeometry.index.array
-    ).setFriction(defaults.trackFriction);
-    this.collider = this.world.createCollider(trackCollider, this.body);
+    let newGeometry = BufferGeometryUtils.mergeVertices(this.mesh.geometry as THREE.BufferGeometry); // Cast to BufferGeometry
+    const positionArray = newGeometry.getAttribute("position").array as Float32Array;
+    const indexArray = newGeometry.index ? newGeometry.index.array as Uint32Array : undefined;
+
+    if (positionArray && indexArray) {
+      const trackColliderDesc = RAPIER.ColliderDesc.trimesh(
+        positionArray,
+        indexArray
+      ).setFriction(defaults.trackFriction);
+      this.collider = this.world.createCollider(trackColliderDesc, this.body);
+    } else {
+      console.warn("Skipping collider creation for Curve track due to missing position or index data.");
+    }
   }
 
   buildCurve() {
@@ -344,18 +410,20 @@ export class Curve extends PhysicsObject {
 }
 
 export class Windmill extends PhysicsObject {
-  constructor(scene, world) {
-    const { width, height, depth, trackWidth, trackDepth } = defaults;
+  bladeBody: RAPIER.RigidBody; // Declare bladeBody
+
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
+    const { width, height, trackWidth, trackDepth } = defaults;
 
     const geometry = straightTrackGeometry({
       width,
       height,
-      depth: defaults.windmillDepth,
+      depth: defaults.windmillDepth, // depth is used here
       trackDepth,
       trackWidth,
     });
 
-    const color = new THREE.Color(0x06335a);
+    // const color = new THREE.Color(0x06335a); // TS6133: 'color' is declared but its value is never read.
     const material = setMaterials.windmill();
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -379,10 +447,12 @@ export class Windmill extends PhysicsObject {
 
     const bladeBody = world.createRigidBody(bladeBodyDesc);
     bladeBody.setAngularDamping(1);
-    bladeBody.setEnabledRotations(true, false, false);
+    bladeBody.setEnabledRotations(true, false, false, true); // Added wakeUp: true
 
     const pinBody = world.createRigidBody(pinBodyDesc);
-    const joint = world.createImpulseJoint(jointParams, bladeBody, pinBody, true);
+    // const joint = world.createImpulseJoint(jointParams, bladeBody, pinBody, true); // TS6133: 'joint' is declared but its value is never read.
+    world.createImpulseJoint(jointParams, bladeBody, pinBody, true);
+
 
     super(scene, group, world, pinBody);
 
@@ -395,21 +465,24 @@ export class Windmill extends PhysicsObject {
     this.type = "WindmillTrack";
   }
 
-  setTranslation(x, y, z) {
+  setTranslation(x: number | THREE.Vector3, y?: number, z?: number) {
     if (x instanceof THREE.Vector3) {
       this.bladeBody.setTranslation(x, true);
-    } else {
-      this.bladeBody.setTranslation(new THREE.Vector3(x, y, z), true);
+      super.setTranslation(x.x, x.y, x.z); // Pass x, y, z components
+    } else if (y !== undefined && z !== undefined) {
+      const vec = new THREE.Vector3(x as number, y, z);
+      this.bladeBody.setTranslation(vec, true);
+      super.setTranslation(x as number, y, z); // Pass x, y, z
     }
-
-    super.setTranslation(x, y, z);
     return this;
   }
 
   dispose() {
     this.scene.remove(this.group);
     this.world.removeRigidBody(this.body);
-    this.world.removeRigidBody(this.bladeBody);
+    if (this.bladeBody) { // Check if bladeBody exists
+      this.world.removeRigidBody(this.bladeBody);
+    }
   }
 
   updateRotation() {
@@ -470,10 +543,10 @@ export class Windmill extends PhysicsObject {
 }
 
 export class Tray extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "TrayTrack";
     const group = new THREE.Group();
-    const material = setMaterials.tray();
+    const material = setMaterials.tray(); // No longer cast
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
     group.userData.type = name;
@@ -485,11 +558,11 @@ export class Tray extends PhysicsObject {
 }
 
 export class Funnel extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "FunnelTrack";
     const group = new THREE.Group();
     group.userData.type = name;
-    const material = setMaterials.funnel();
+    const material = setMaterials.funnel(); // No longer cast
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
     buildTrack(name, group, material, scene, body, world);
@@ -499,11 +572,11 @@ export class Funnel extends PhysicsObject {
 }
 
 export class Ring extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "RingTrack";
     const group = new THREE.Group();
     group.userData.type = name;
-    const material = setMaterials.ring();
+    const material = setMaterials.ring(); // No longer cast
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
     buildTrack(name, group, material, scene, body, world);
@@ -513,11 +586,11 @@ export class Ring extends PhysicsObject {
 }
 
 export class RingLong extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "RingLongTrack";
     const group = new THREE.Group();
     group.userData.type = name;
-    const material = setMaterials.ringLong();
+    const material = setMaterials.ringLong(); // No longer cast
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
     buildTrack(name, group, material, scene, body, world);
@@ -527,11 +600,11 @@ export class RingLong extends PhysicsObject {
 }
 
 export class Tube extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "TubeTrack";
     const group = new THREE.Group();
     group.userData.type = name;
-    const material = setMaterials.tube();
+    const material = setMaterials.tube(); // No longer cast
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
     buildTrack(name, group, material, scene, body, world);
@@ -541,11 +614,11 @@ export class Tube extends PhysicsObject {
 }
 
 export class Cone extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "ConeTrack";
     const group = new THREE.Group();
     group.userData.type = name;
-    const material = setMaterials.cone();
+    const material = setMaterials.cone(); // No longer cast
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
     buildTrack(name, group, material, scene, body, world);
@@ -555,14 +628,14 @@ export class Cone extends PhysicsObject {
 }
 
 export class Random extends PhysicsObject {
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const names = ["RingTrack", "RingLongTrack", "ConeTrack", "TubeTrack"];
     const name = names[randInt(0, names.length - 1)];
     const group = new THREE.Group();
     group.userData.type = name;
 
     // Choose material based on the random track type selected
-    let material;
+    let material: THREE.Material; // Specify type as THREE.Material
     switch (name) {
       case "RingTrack":
         material = setMaterials.ring();
@@ -573,8 +646,8 @@ export class Random extends PhysicsObject {
       case "ConeTrack":
         material = setMaterials.cone();
         break;
-      default:
-        material = setMaterials.ring();
+      default: // Assuming TubeTrack was meant or just a default
+        material = setMaterials.tube(); // Defaulting to tube or another appropriate one
     }
 
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -589,12 +662,12 @@ export class Starter extends PhysicsObject {
   // Outer width: 1.8
   // Inner width: 1.4
 
-  constructor(scene, world) {
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "StarterTrack";
     const group = new THREE.Group();
     group.userData.type = name;
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    const material = setMaterials.starter();
+    const material = setMaterials.starter(); // No longer cast
 
     buildTrack(name, group, material, scene, body, world);
 
@@ -604,10 +677,10 @@ export class Starter extends PhysicsObject {
     this.world = world;
   }
 
-  placeMarble(marblesArray, light) {
+  placeMarble(marblesArray: Marble[], light: THREE.Light) { // Add types
     const marble = new Marble(
-      this.scene,
-      this.world,
+      this.scene as THREE.Scene, // Cast scene
+      this.world as RAPIER.World, // Cast world
       defaults.marbleRadius,
       light,
       marblesArray
@@ -617,18 +690,22 @@ export class Starter extends PhysicsObject {
 }
 
 export class Logo extends PhysicsObject {
-  constructor(scene, world) {
+  areaLight: THREE.RectAreaLight;
+  textMaterials: THREE.Material[];
+
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const group = new THREE.Group();
     group.userData.type = "LogoTrack";
 
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
-    const backMaterial = { color: "#06335a" };
-    const textMaterial = {
+    // These should be actual Material instances
+    const backMaterial = new THREE.MeshStandardMaterial({ color: "#06335a" });
+    const textMaterial = new THREE.MeshStandardMaterial({
       color: "#ffffff",
       emissive: new THREE.Color("#d8d8ff"),
       emissiveIntensity: 0,
-    };
+    });
 
     buildTrack("LogoTrackBack", group, backMaterial, scene, body, world, false);
     buildTrack("LogoTrackText", group, textMaterial, scene, body, world, false);
@@ -643,10 +720,9 @@ export class Logo extends PhysicsObject {
 
     this.areaLight = areaLight;
 
-    this.textMaterials = [
-      this.group.children[1].material,
-      this.group.children[2].material,
-    ];
+    this.textMaterials = this.group.children
+      .filter((child): child is THREE.Mesh => child instanceof THREE.Mesh) // Type guard
+      .map(child => child.material) as THREE.Material[]; // Cast material
 
     this.type = "LogoTrack";
     this.world = world;
@@ -654,32 +730,40 @@ export class Logo extends PhysicsObject {
   lightOn() {
     gsap.to(this.areaLight, { intensity: 5 });
     for (const textMaterial of this.textMaterials) {
-      gsap.to(textMaterial, { emissiveIntensity: 0.8 });
+      if (textMaterial instanceof THREE.MeshStandardMaterial) { // Check type
+        gsap.to(textMaterial, { emissiveIntensity: 0.8 });
+      }
     }
   }
   lightOff() {
     gsap.to(this.areaLight, { intensity: 0 });
     for (const textMaterial of this.textMaterials) {
-      gsap.to(textMaterial, { emissiveIntensity: 0 });
+      if (textMaterial instanceof THREE.MeshStandardMaterial) { // Check type
+        gsap.to(textMaterial, { emissiveIntensity: 0 });
+      }
     }
   }
 }
 
 export class LightCube extends PhysicsObject {
-  constructor(scene, world) {
+  areaLight: THREE.PointLight;
+  textMaterials: THREE.Material[];
+
+  constructor(scene: THREE.Scene, world: RAPIER.World) {
     const name = "LightCube";
     const group = new THREE.Group();
     group.userData.type = name;
 
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
-    const backMaterial = { color: "#06335a", visible: false };
-    const textMaterial = {
+    // These should be actual Material instances
+    const backMaterial = new THREE.MeshStandardMaterial({ color: "#06335a", visible: false });
+    const textMaterial = new THREE.MeshStandardMaterial({
       color: "#ffffff",
       emissive: new THREE.Color("#d8d8ff"),
       emissiveIntensity: 0,
       visible: false,
-    };
+    });
 
     buildTrack("LightCubeBase", group, backMaterial, scene, body, world, false);
     buildTrack("LightCube", group, textMaterial, scene, body, world, false);
@@ -695,10 +779,9 @@ export class LightCube extends PhysicsObject {
 
     this.areaLight = areaLight;
 
-    this.textMaterials = [
-      this.group.children[1].material,
-      this.group.children[2].material,
-    ];
+    this.textMaterials = this.group.children
+        .filter((child): child is THREE.Mesh => child instanceof THREE.Mesh) // Type guard
+        .map(child => child.material) as THREE.Material[]; // Cast material
 
     this.type = name;
     this.world = world;
@@ -706,13 +789,17 @@ export class LightCube extends PhysicsObject {
   lightOn() {
     gsap.to(this.areaLight, { intensity: 5 });
     for (const textMaterial of this.textMaterials) {
-      gsap.to(textMaterial, { emissiveIntensity: 0.8 });
+      if (textMaterial instanceof THREE.MeshStandardMaterial) { // Check type
+        gsap.to(textMaterial, { emissiveIntensity: 0.8 });
+      }
     }
   }
   lightOff() {
     gsap.to(this.areaLight, { intensity: 0 });
     for (const textMaterial of this.textMaterials) {
-      gsap.to(textMaterial, { emissiveIntensity: 0 });
+      if (textMaterial instanceof THREE.MeshStandardMaterial) { // Check type
+        gsap.to(textMaterial, { emissiveIntensity: 0 });
+      }
     }
   }
 }

@@ -1,21 +1,31 @@
-// @ts-nocheck
-
-import { ExtrudeGeometry, Shape, ShapeGeometry } from "three";
+import { ExtrudeGeometry, Shape } from "three"; // Removed ShapeGeometry
 import { defaults } from "./config";
 
-export function curveTrackGeometry(shape, curve) {
+interface TrackGeometryParams {
+  width: number;
+  height: number;
+  depth: number;
+  trackWidth: number;
+  trackDepth: number;
+}
+
+export function curveTrackGeometry(shape: THREE.Shape, curve: THREE.Curve<THREE.Vector3>): THREE.ExtrudeGeometry {
   const extrusion = new ExtrudeGeometry(shape, {
     steps: 50,
     bevelEnabled: false,
     extrudePath: curve,
   });
 
+  // It seems 'defaults.width' might be problematic if it's not always the intended offset.
+  // For now, leaving as is, but this could be a point of refinement.
   extrusion.translate(defaults.width, 0, 0);
 
   return extrusion;
 }
 
-export function straightTrackGeometry({ width, height, depth, trackWidth, trackDepth }) {
+export function straightTrackGeometry(params: TrackGeometryParams): THREE.ExtrudeGeometry {
+  const { width, height, depth, trackWidth, trackDepth } = params;
+  // Pass all params to trackShape as it might need them, even if not all are used directly in its own logic
   const profile = trackShape({ width, height, depth, trackWidth, trackDepth });
 
   const extrudeSettings = {
@@ -37,7 +47,9 @@ export function straightTrackGeometry({ width, height, depth, trackWidth, trackD
   return geometry;
 }
 
-export function trackShape({ width, height, depth, trackWidth, trackDepth }) {
+// depth is passed but not used directly in this function's logic, only passed down.
+// It's included in TrackGeometryParams for use in straightTrackGeometry.
+export function trackShape({ width, height, trackWidth, trackDepth }: TrackGeometryParams): THREE.Shape {
   const wallWidth = (width - trackWidth) / 2;
   const profile = new Shape();
 
@@ -59,7 +71,12 @@ export function trackShape({ width, height, depth, trackWidth, trackDepth }) {
   return profile;
 }
 
-export function anchorShape(dimensions) {
+interface AnchorShapeDimensions {
+  width?: number;
+  height?: number;
+}
+
+export function anchorShape(dimensions: AnchorShapeDimensions): THREE.Shape {
   const { width = 1.2, height = 0.7 } = dimensions;
 
   const profile = new Shape();
@@ -73,9 +90,15 @@ export function anchorShape(dimensions) {
   return profile;
 }
 
-export function halfPillGeometry(dimensions) {
+interface HalfPillGeometryDimensions extends AnchorShapeDimensions {
+  depth?: number;
+  trackWidth: number; // trackWidth is required
+}
+
+export function halfPillGeometry(dimensions: HalfPillGeometryDimensions): THREE.ExtrudeGeometry {
   const { depth = 0.2, trackWidth } = dimensions;
-  const profile = anchorShape(dimensions);
+  // Pass all relevant parts of dimensions to anchorShape
+  const profile = anchorShape({ width: dimensions.width, height: dimensions.height });
 
   const extrudeSettings = {
     steps: 1,

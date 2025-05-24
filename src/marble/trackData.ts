@@ -21,7 +21,7 @@ export function getModelPath(name: string): string | undefined {
 }
 
 // Material and Color functions
-const baseColors = {
+const baseColors: { [key: string]: string } = {
   c1: "#2a5e92",
   c2: "#ffeead",
   c3: "#ff9943",

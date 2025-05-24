@@ -22,11 +22,12 @@ const App = () => {
   const [logoLit, setLogoLit] = useState(false);
   const [lightCubeLit, setLightCubeLit] = useState(false);
 
-  const [starterTrackInfo, setStarterTrackInfo] = useState({
+  // setStarterTrackInfo was unused (TS6133)
+  const starterTrackInfo = {
     id: 'starter-track-1',
     position: [0, -2, 0] as [number, number, number], // Example initial position
     rotation: [0, 0, 0] as [number, number, number], // Example initial rotation
-  });
+  };
 
   useEffect(() => {
     modelDatas.forEach(model => useGLTF.preload(model.url));

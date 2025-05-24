@@ -1,8 +1,9 @@
 // src/marble/tracks/WindmillTrack.tsx
 import React, { useRef, useEffect, useMemo } from 'react';
-import { RigidBody, CuboidCollider, useRapier, useRevoluteJoint } from '@react-three/rapier';
+// useRapier was unused (TS6133)
+import { RigidBody, CuboidCollider, useRevoluteJoint } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
-import * as THREE from 'three';
+// import * as THREE from 'three'; // TS6133: 'THREE' is declared but its value is never read.
 import { trackMaterials } from '../trackData'; // Adjust path
 import { defaults } from '../config'; // Adjust path
 import { randInt } from 'three/src/math/MathUtils.js';
