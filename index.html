@@ -15,6 +15,10 @@
     <link rel="stylesheet" href="./src/style.css" />
     <link rel="stylesheet" href="./src/styles/Overlay.css" />
     <link rel="stylesheet" href="./src/styles/TrackButton.css" />
+    <style>
+      body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+      canvas { display: block; }
+    </style>
   </head>
   <body>
     <div class="about aboutHide">
@@ -123,8 +127,7 @@
       </div>
     </div>
 
-    <div id="three"></div>
-    <script type="module" src="./src/buttons.ts"></script>
-    <script type="module" src="/src/Marblie.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
