@@ -33,11 +33,11 @@ export const CurveTrack: React.FC<CurveTrackProps> = ({
   const curveMaterial = useMemo(() => trackMaterials.curve(), []);
 
   const { mainGeometry, capGeometry } = useMemo(() => {
-    const shape = trackShape({ width, height, trackWidth, trackDepth });
+    const shape = trackShape({ width, height, depth: height, trackWidth, trackDepth });
     const points = curvePoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
     const curve = new THREE.QuadraticBezierCurve3(points[0], points[1], points[2]);
     
-    const mainGeom = curveTrackGeometry(shape, curve, sections);
+    const mainGeom = curveTrackGeometry(shape, curve);
     mainGeom.computeVertexNormals(); // Important for lighting
 
     const capGeom = new THREE.ShapeGeometry(shape);

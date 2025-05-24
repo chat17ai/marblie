@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: "0.0.0.0",
+    port: 8120,
   },
   build: {
     target: "es2022", // this affects Rollup build

@@ -1,7 +1,7 @@
 // src/marble/tracks/WindmillTrack.tsx
 import React, { useRef, useEffect, useMemo } from 'react';
-import { RigidBody, CuboidCollider, useRapier, RevoluteJoint } from '@react-three/rapier';
-import type { RapierRigidBody, RigidBodyApi } from '@react-three/rapier';
+import { RigidBody, CuboidCollider, useRapier, useRevoluteJoint } from '@react-three/rapier';
+import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { trackMaterials } from '../trackData'; // Adjust path
 import { defaults } from '../config'; // Adjust path
@@ -64,8 +64,19 @@ export const WindmillTrack: React.FC<WindmillTrackProps> = ({
 
   const windmillMaterial = useMemo(() => trackMaterials.windmill(), []);
 
-  const pinRef = useRef<RapierRigidBody>(null);
-  const bladeRef = useRef<RigidBodyApi>(null);
+  const pinRef = useRef<RapierRigidBody>(null!);
+  const bladeRef = useRef<RapierRigidBody>(null!);
+  
+  // 使用useRevoluteJoint钩子创建关节 - 正确的参数格式
+  useRevoluteJoint(
+    pinRef,
+    bladeRef,
+    [
+      [0, 0, 0], // anchorA - Center of pin
+      [0, 0, 0], // anchorB - Center of blades
+      [1, 0, 0]  // axis - Spin around X-axis
+    ]
+  );
 
   const bladeColliderSet1 = useMemo(() => createBladeColliderArgs(defaultWidth, defaultHeight, windmillDepth, trackWidth, trackDepth), [defaultWidth, defaultHeight, windmillDepth, trackWidth, trackDepth]);
   
@@ -133,23 +144,6 @@ export const WindmillTrack: React.FC<WindmillTrackProps> = ({
           />
         ))}
       </RigidBody>
-
-      {/* Joint connecting blades to pin */}
-      {pinRef.current && bladeRef.current && ( // Ensure refs are available
-        <RevoluteJoint
-          bodyA={pinRef.current} // The R3F way is to pass the ref itself
-          bodyB={bladeRef.current} // The R3F way is to pass the ref itself
-          // Anchors in local space of each body
-          anchorA={[0, 0, 0]} // Center of pin
-          anchorB={[0, 0, 0]} // Center of blades
-          // Axis in local space of bodyA (pin)
-          axisA={[1, 0, 0]} // Spin around pin's X-axis
-          // Axis in local space of bodyB (blades) - usually same as axisA for simple revolute
-          // axisB={[1, 0, 0]} // Spin around blades' X-axis
-          // R3Rapier might simplify this. Check docs. Common is one axis and two anchors.
-          // The `RevoluteJoint` component from R3R typically takes `bodyARef`, `bodyBRef`, `[anchorA]`, `[anchorB]`, `[axis]`
-        />
-      )}
     </>
   );
 };
